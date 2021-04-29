@@ -439,7 +439,7 @@ def get_p_val(y, z, a, b, muL, muR, var, ind=0, use_tdist=False):
     else:
         d0 = norm.cdf
     p = np.min((d0(stat), d0(-stat)))*2
-    return p
+    return p, stat
 
 
 def get_p_val_1D(y, z, a, muL, muR, var, use_tdist=False):
@@ -557,6 +557,7 @@ def tn_test(y, z,
             return_likelihood=False,
             return_hyperplane=False,
             return_consistency=False,
+            return_test_statistic=False,
             num_cores=1):
     """
     The TN test as described in
@@ -593,6 +594,7 @@ def tn_test(y, z,
     return_hyperplane: if true, return the estimated separating hyperplane
     return_consistency: whether or not to return how consistent fitted 
         hyperplane labels are with original ones (for dataset2)
+    return_test_statistic: if true, return test statistic
     num_cores: number of workers to parallelize on
 
     Returns
@@ -671,16 +673,20 @@ def tn_test(y, z,
 
     inputs = [(y, z, a, b, muL_hat, muR_hat, var_hat, j, use_tdist)
               for j in genes_to_test_filt]
-    p_tn = Parallel(n_jobs=num_cores, verbose=verbose)(delayed(processInput)(i) for i in inputs)
+    res = Parallel(n_jobs=num_cores, verbose=verbose)(delayed(processInput)(i) for i in inputs)
+    p_tn = [x[0] for x in res]
+    test_stat = [x[1] for x in res]
             
     # Add in removed genes due to having 0 var
     j = 0
     p_tn_out = np.ones(len(genes_to_test))
+    test_stat_out = np.zeros(len(genes_to_test))
     a_out = np.zeros(len(genes_to_test))
     for i in range(len(genes_to_test)):
         if genes_to_test[i] in d:
             p_tn_out[i] = p_tn[j]
             a_out[i] = a[j]
+            test_stat_out[i] = test_stat[j]
             j += 1
 
     if verbose:
@@ -701,6 +707,9 @@ def tn_test(y, z,
         
     if return_consistency:
         output.append(consistency)
+
+    if return_test_statistic:
+        output.append(test_stat_out)
 
     if len(output) == 1:
         return p_tn_out
